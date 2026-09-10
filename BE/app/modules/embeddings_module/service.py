@@ -239,3 +239,6 @@ def generate_related_words(query_text: str, top_k: int = 1) -> dict[str, object]
         "related_words": related_words,
         "matches": matches,
     }
+
+# learn about model evaluation concepts: Accuracy, Precision, Recall, F1-Score, ROC-AUC, and RMSE?
+# Accuracy, Precision, Recall, F1-Score, ROC-AUC, and RMSE?
