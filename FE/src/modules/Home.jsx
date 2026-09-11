@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 
-/**
- * Home page. Also checks the backend /health endpoint so you can
- * confirm FE and BE are talking to each other.
- */
 export default function Home() {
   const [status, setStatus] = useState("checking...");
 
@@ -16,15 +12,19 @@ export default function Home() {
   }, []);
 
   return (
-    <div>
-      <h1>Learning by Doing</h1>
-      <p>Pick a module from the sidebar. Add new ones as you learn.</p>
-      <p>
-        Backend URL: <code>{api.baseUrl}</code>
+    <div className="max-w-2xl">
+      <h1 className="text-3xl font-bold text-slate-900">Learning by Doing</h1>
+      <p className="mt-2 text-slate-600">
+        Pick a module from the sidebar. Add new ones as you learn.
       </p>
-      <p>
-        Backend health: <strong>{status}</strong>
-      </p>
+      <div className="mt-6 space-y-2 text-sm">
+        <p>
+          Backend URL: <code>{api.baseUrl}</code>
+        </p>
+        <p>
+          Backend health: <span className="font-semibold text-slate-800">{status}</span>
+        </p>
+      </div>
     </div>
   );
 }

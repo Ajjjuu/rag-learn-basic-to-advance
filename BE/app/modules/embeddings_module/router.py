@@ -15,7 +15,7 @@ from app.modules.embeddings_module.service import (
     COLLECTION_NAME,
     count_stored_embeddings,
     delete_stored_embedding,
-    generate_related_words,
+    find_related_words,
     list_stored_embeddings,
     store_and_query_embeddings,
 )
@@ -74,10 +74,10 @@ def delete_embedding(point_id: str):
 
 @router.post("/embeddings/related-words", response_model=RelatedWordsResponse)
 def get_related_words(input_data: SimilarityQueryInput):
-    """Find nearest vectors in Qdrant and generate related words using Groq model."""
+    """Find nearest vectors in Qdrant and return related words from stored payloads."""
     if not input_data.text.strip():
         raise HTTPException(status_code=400, detail="text is required")
 
     top_k = min(max(input_data.top_k, 1), 20)
-    result = generate_related_words(query_text=input_data.text, top_k=top_k)
+    result = find_related_words(query_text=input_data.text, top_k=top_k)
     return RelatedWordsResponse(**result)

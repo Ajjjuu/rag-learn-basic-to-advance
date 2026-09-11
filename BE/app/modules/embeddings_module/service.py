@@ -205,7 +205,7 @@ def find_similar_vectors(text: str, top_k: int = 1) -> list[dict[str, str | floa
         with_vectors=False,
         with_payload=True,
     )
-
+    print("query result:", query_result)
     points = getattr(query_result, "points", None) or []
     matches: list[dict[str, str | float | None]] = []
     for point in points:
@@ -222,7 +222,7 @@ def find_similar_vectors(text: str, top_k: int = 1) -> list[dict[str, str | floa
 
 
 # Query nearest neighbors from Qdrant and return their stored texts as related items.
-def generate_related_words(query_text: str, top_k: int = 1) -> dict[str, object]:
+def find_related_words(query_text: str, top_k: int = 1) -> dict[str, object]:
     """Find semantically similar items from Qdrant storage."""
     matches = find_similar_vectors(query_text, top_k=top_k)
     
