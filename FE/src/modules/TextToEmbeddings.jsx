@@ -7,11 +7,23 @@ export default function TextToEmbeddings() {
   const [storedCount, setStoredCount] = useState(null);
   const [storedItems, setStoredItems] = useState([]);
   const [relatedResult, setRelatedResult] = useState(null);
+  const [answerResult, setAnswerResult] = useState(null);
+  const [relatedTopK, setRelatedTopK] = useState("1");
+  const [answerTopK, setAnswerTopK] = useState("3");
   const [loading, setLoading] = useState(false);
   const [storageLoading, setStorageLoading] = useState(false);
   const [relatedLoading, setRelatedLoading] = useState(false);
+  const [answerLoading, setAnswerLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState(null);
+
+  const normalizeTopK = (value, fallback) => {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
+      return fallback;
+    }
+    return Math.min(Math.max(parsed, 1), 20);
+  };
 
   const refreshStoredVectors = async () => {
     const response = await api.get("/embeddings/stored?limit=20");
@@ -64,17 +76,44 @@ export default function TextToEmbeddings() {
     setRelatedLoading(true);
     setError(null);
     setRelatedResult(null);
+    const topK = normalizeTopK(relatedTopK, 1);
+    setRelatedTopK(String(topK));
 
     try {
       const response = await api.post("/embeddings/related-words", {
         text: inputText,
-        top_k: 1,
+        top_k: topK,
       });
       setRelatedResult(response);
     } catch (err) {
-      setError(err.message || "Failed to find related words");
+      setError(err.message || "Failed to find related vectors");
     } finally {
       setRelatedLoading(false);
+    }
+  };
+
+  const handleFindAnswer = async () => {
+    if (!inputText.trim()) {
+      setError("Please enter some text");
+      return;
+    }
+
+    setAnswerLoading(true);
+    setError(null);
+    setAnswerResult(null);
+    const topK = normalizeTopK(answerTopK, 3);
+    setAnswerTopK(String(topK));
+
+    try {
+      const response = await api.post("/embeddings/find-answer", {
+        text: inputText,
+        top_k: topK,
+      });
+      setAnswerResult(response);
+    } catch (err) {
+      setError(err.message || "Failed to find answer");
+    } finally {
+      setAnswerLoading(false);
     }
   };
 
@@ -132,11 +171,47 @@ export default function TextToEmbeddings() {
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Semantic search
             </h3>
-            <button onClick={handleFindRelatedWords} disabled={relatedLoading} className="convert-button secondary-button block-button">
-              {relatedLoading ? "Finding..." : "Find Related Words"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={handleFindRelatedWords} disabled={relatedLoading} className="convert-button secondary-button flex-1">
+                {relatedLoading ? "Finding..." : "Find Related Vectors"}
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={relatedTopK}
+                onChange={(e) => setRelatedTopK(e.target.value)}
+                className="w-16 rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-primary-500 focus:outline-none"
+                aria-label="Top K for semantic search"
+                title="Top K"
+              />
+            </div>
             <p className="mt-2 text-xs text-slate-500">
-              Find semantically similar items already stored in Qdrant based on vector similarity.
+              Find semantically similar items already stored in Qdrant based on vector similarity (top_k).
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Step-0 RAG
+            </h3>
+            <div className="flex items-center gap-2">
+              <button onClick={handleFindAnswer} disabled={answerLoading} className="convert-button secondary-button flex-1">
+                {answerLoading ? "Answering..." : "Find Answer"}
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={answerTopK}
+                onChange={(e) => setAnswerTopK(e.target.value)}
+                className="w-16 rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-primary-500 focus:outline-none"
+                aria-label="Top K for find answer"
+                title="Top K"
+              />
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Fetch nearest context from Qdrant and ask Groq to answer from that context (top_k).
             </p>
           </div>
         </div>
@@ -268,6 +343,40 @@ export default function TextToEmbeddings() {
               </ul>
             ) : (
               <p className="text-sm text-slate-500">No matches found in Qdrant.</p>
+            )}
+          </div>
+        )}
+
+        {answerResult && (
+          <div className="card">
+            <h2 className="mb-4 text-xl font-semibold text-slate-900">Answer from Retrieved Context</h2>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
+              {answerResult.answer}
+            </p>
+
+            <h3 className="mb-2 mt-4 text-sm font-semibold">Context Used</h3>
+            {answerResult.context_items?.length ? (
+              <ul className="mb-4 list-disc space-y-1 pl-5 text-sm">
+                {answerResult.context_items.map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mb-4 text-sm text-slate-500">No context retrieved from stored vectors.</p>
+            )}
+
+            <h3 className="mb-2 text-sm font-semibold">Nearest Matches</h3>
+            {answerResult.matches?.length ? (
+              <ul className="space-y-1 text-sm">
+                {answerResult.matches.map((match) => (
+                  <li key={match.point_id}>
+                    <strong>ID:</strong> {match.point_id} | <strong>Score:</strong>{" "}
+                    {match.score.toFixed(4)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500">No nearest matches found.</p>
             )}
           </div>
         )}

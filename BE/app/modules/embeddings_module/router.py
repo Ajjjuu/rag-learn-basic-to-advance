@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.modules.embeddings_module.schemas import (
     DeleteVectorResponse,
     EmbeddingsResponse,
+    FindAnswerResponse,
     RelatedWordsResponse,
     SimilarityQueryInput,
     StoredVectorsCountResponse,
@@ -15,6 +16,7 @@ from app.modules.embeddings_module.service import (
     COLLECTION_NAME,
     count_stored_embeddings,
     delete_stored_embedding,
+    find_answer_with_context,
     find_related_words,
     list_stored_embeddings,
     store_and_query_embeddings,
@@ -81,3 +83,14 @@ def get_related_words(input_data: SimilarityQueryInput):
     top_k = min(max(input_data.top_k, 1), 20)
     result = find_related_words(query_text=input_data.text, top_k=top_k)
     return RelatedWordsResponse(**result)
+
+
+@router.post("/embeddings/find-answer", response_model=FindAnswerResponse)
+def find_answer(input_data: SimilarityQueryInput):
+    """Step-0 RAG endpoint: retrieve nearest vectors and generate an answer with Gemini."""
+    if not input_data.text.strip():
+        raise HTTPException(status_code=400, detail="text is required")
+
+    top_k = min(max(input_data.top_k, 1), 20)
+    result = find_answer_with_context(query_text=input_data.text, top_k=top_k)
+    return FindAnswerResponse(**result)

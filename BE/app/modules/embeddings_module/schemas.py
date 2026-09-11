@@ -55,3 +55,11 @@ class RelatedWordsResponse(BaseModel):
     top_k: int
     related_words: list[str]
     matches: list[SimilarMatchItem]
+
+
+class FindAnswerResponse(BaseModel):
+    query_text: str
+    top_k: int
+    answer: str
+    context_items: list[str]
+    matches: list[SimilarMatchItem]

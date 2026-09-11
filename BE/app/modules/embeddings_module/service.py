@@ -3,6 +3,7 @@
 from uuid import uuid4
 
 from google import genai
+from openai import OpenAI
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, PointIdsList, PointStruct, VectorParams
 
@@ -10,6 +11,8 @@ from app.core.config import settings
 
 # Initialize Gemini API client
 client = genai.Client(api_key=settings.gemini_api_key)
+groq_client = OpenAI(api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1")
+GROQ_ANSWER_MODEL = "openai/gpt-oss-120b"
 
 # Qdrant settings (running locally at -p 6333:6333)
 qdrant_client = QdrantClient(host="localhost", port=6333)
@@ -205,7 +208,6 @@ def find_similar_vectors(text: str, top_k: int = 1) -> list[dict[str, str | floa
         with_vectors=False,
         with_payload=True,
     )
-    print("query result:", query_result)
     points = getattr(query_result, "points", None) or []
     matches: list[dict[str, str | float | None]] = []
     for point in points:
@@ -237,6 +239,59 @@ def find_related_words(query_text: str, top_k: int = 1) -> dict[str, object]:
         "query_text": query_text,
         "top_k": top_k,
         "related_words": related_words,
+        "matches": matches,
+    }
+
+
+def find_answer_with_context(query_text: str, top_k: int = 3) -> dict[str, object]:
+    """Step-0 RAG: retrieve nearest vectors and ask Groq to answer from that context."""
+    matches = find_similar_vectors(query_text, top_k=top_k)
+    context_texts = [match["text"] for match in matches if match["text"] is not None]
+
+    if not settings.groq_api_key:
+        raise RuntimeError("GROQ_API_KEY is not configured")
+
+    if context_texts:
+        context_block = "\n\n".join(f"- {text}" for text in context_texts)
+        prompt = (
+            "You are a helpful assistant. Answer the user question using only the context below. "
+            "If context is insufficient, clearly say you do not have enough information.\n\n"
+            f"Context:\n{context_block}\n\n"
+            f"Question: {query_text}"
+        )
+    else:
+        prompt = (
+            "No relevant context was retrieved from vector storage. "
+            "Tell the user there is not enough information to answer confidently.\n\n"
+            f"Question: {query_text}"
+        )
+
+    llm_response = groq_client.chat.completions.create(
+        model=GROQ_ANSWER_MODEL,
+        temperature=0.2,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a RAG assistant. Use only retrieved context. "
+                    "If context is insufficient, say so clearly."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    answer_text = (
+        ((llm_response.choices[0].message.content or "").strip())
+        if llm_response.choices
+        else ""
+    ) or "I could not generate an answer."
+
+    return {
+        "query_text": query_text,
+        "top_k": top_k,
+        "answer": answer_text,
+        "context_items": context_texts,
         "matches": matches,
     }
 
